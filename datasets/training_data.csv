@@ -1,0 +1,13 @@
+text,label
+hello,0
+normal search query,0
+login page,0
+product?id=12,0
+contact us,0
+' OR 1=1 --,1
+union select password from users,1
+<script>alert(1)</script>,1
+../../etc/passwd,1
+; ls,1
+onerror=alert(1),1
+drop table users --,1

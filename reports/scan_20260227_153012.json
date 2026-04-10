@@ -1,0 +1,17 @@
+{
+  "type": "SITE_ACTIVE_SCAN",
+  "seed_url": "http://127.0.0.1:5001/",
+  "max_pages": 5,
+  "started_at": "2026-02-27T15:30:08",
+  "pages": [],
+  "summary": {
+    "pages": 0,
+    "forms": 0,
+    "findings": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "finished_at": "2026-02-27T15:30:12"
+}

@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AI-Powered Web Application Firewall with a Real-Time Security Operations Center (SOC) Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 30%),
+        radial-gradient(circle at top right, rgba(239,68,68,0.10), transparent 25%),
+        linear-gradient(135deg, #020617, #0f172a 45%, #111827);
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: rgba(2, 6, 23, 0.88);
+      border-right: 1px solid rgba(56, 189, 248, 0.14);
+      padding: 22px 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
+    }
+
+    .brand {
+      font-size: 22px;
+      font-weight: 800;
+      color: #38bdf8;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    .side-card {
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(56, 189, 248, 0.14);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    }
+
+    .side-title {
+      font-size: 13px;
+      color: #38bdf8;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .side-btn,
+    .filter-btn {
+      width: 100%;
+      padding: 11px 12px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(56,189,248,0.18);
+      background: rgba(2, 6, 23, 0.9);
+      color: #e2e8f0;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: 0.2s ease;
+    }
+
+    .side-btn:hover,
+    .filter-btn:hover,
+    .filter-btn.active {
+      background: #38bdf8;
+      color: #020617;
+      transform: translateY(-1px);
+    }
+
+    .side-btn.danger {
+      border-color: rgba(239,68,68,0.4);
+      background: rgba(127,29,29,0.3);
+      color: #fecaca;
+    }
+
+    .side-btn.danger:hover {
+      background: #ef4444;
+      color: white;
+    }
+
+    .main {
+      padding: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .hero {
+      flex: 1;
+      min-width: 320px;
+      background: rgba(2, 6, 23, 0.68);
+      border: 1px solid rgba(56,189,248,0.18);
+      border-radius: 22px;
+      padding: 20px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.26);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(56,189,248,0.05), transparent);
+      pointer-events: none;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 28px;
+      color: #e0f2fe;
+      line-height: 1.3;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .status-box {
+      min-width: 240px;
+      background: rgba(2, 6, 23, 0.72);
+      border: 1px solid rgba(239,68,68,0.16);
+      border-radius: 22px;
+      padding: 18px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.26);
+    }
+
+    .status-label {
+      font-size: 12px;
+      color: #fca5a5;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .status-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ef4444;
+      margin-top: 6px;
+    }
+
+    .ticker {
+      margin-bottom: 18px;
+      background: rgba(127,29,29,0.18);
+      border: 1px solid rgba(239,68,68,0.18);
+      border-radius: 16px;
+      padding: 12px 16px;
+      color: #fecaca;
+      font-weight: 700;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      background: rgba(2, 6, 23, 0.72);
+      border: 1px solid rgba(56,189,248,0.14);
+      border-radius: 20px;
+      padding: 18px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.24);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: "";
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      right: -30px;
+      top: -30px;
+      border-radius: 50%;
+      background: rgba(56,189,248,0.08);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .stat-value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 10px;
+      color: #f8fafc;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: rgba(2, 6, 23, 0.72);
+      border: 1px solid rgba(56,189,248,0.14);
+      border-radius: 20px;
+      padding: 16px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.24);
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: #38bdf8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 320px;
+      min-height: 320px;
+      width: 100%;
+    }
+
+    .search-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+
+    .search-grid input,
+    .search-grid select,
+    .search-grid button {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(56,189,248,0.14);
+      background: rgba(15,23,42,0.9);
+      color: #e2e8f0;
+      outline: none;
+    }
+
+    .search-grid button {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .search-grid button:hover {
+      background: #38bdf8;
+      color: #020617;
+    }
+
+    .events-table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid rgba(51,65,85,0.8);
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    th {
+      color: #38bdf8;
+      font-weight: 800;
+      position: sticky;
+      top: 0;
+      background: rgba(2,6,23,0.95);
+      z-index: 2;
+    }
+
+    .ALLOW {
+      color: #22c55e;
+      font-weight: 800;
+    }
+
+    .BLOCK {
+      color: #ef4444;
+      font-weight: 800;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(30,41,59,0.95);
+      border: 1px solid rgba(51,65,85,0.95);
+      font-size: 11px;
+      margin: 2px 4px 2px 0;
+      white-space: nowrap;
+    }
+
+    .badge-ai-yes {
+      background: rgba(127,29,29,0.75);
+      border-color: #ef4444;
+      color: #fee2e2;
+    }
+
+    .badge-ai-no {
+      background: rgba(20,83,45,0.75);
+      border-color: #22c55e;
+      color: #dcfce7;
+    }
+
+    .score-high {
+      background: rgba(127,29,29,0.75);
+      border-color: #ef4444;
+      color: #fee2e2;
+    }
+
+    .score-medium {
+      background: rgba(120,53,15,0.75);
+      border-color: #f59e0b;
+      color: #fef3c7;
+    }
+
+    .score-low {
+      background: rgba(20,83,45,0.75);
+      border-color: #22c55e;
+      color: #dcfce7;
+    }
+
+    .BAN {
+      background: rgba(127,29,29,0.75);
+      border-color: #ef4444;
+      color: #fee2e2;
+    }
+
+    .mono {
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      color: #cbd5e1;
+      max-width: 520px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .small {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .live-alert {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ef4444;
+      color: white;
+      padding: 14px 20px;
+      border-radius: 14px;
+      font-weight: bold;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: pulse 0.8s infinite alternate;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .new-row {
+      animation: flashRow 1.2s ease-in-out 3;
+      background: rgba(239,68,68,0.12) !important;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.03); }
+    }
+
+    @keyframes flashRow {
+      0%   { background: rgba(239,68,68,0.30); }
+      50%  { background: rgba(239,68,68,0.12); }
+      100% { background: transparent; }
+    }
+
+    /* ── NEW: Confidence meter ── */
+    .conf-meter {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 90px;
+    }
+    .conf-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s;
+    }
+    .conf-num {
+      font-family: Consolas, monospace;
+      font-size: 11px;
+      min-width: 32px;
+    }
+
+    /* ── NEW: Trust bar ── */
+    .trust-bar-wrap {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 0 8px;
+    }
+    .trust-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s;
+    }
+    .trust-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(51,65,85,0.5);
+      font-size: 12px;
+    }
+    .trust-ip {
+      font-family: Consolas, monospace;
+      color: #7dd3fc;
+      min-width: 130px;
+    }
+    .trust-score-val {
+      min-width: 28px;
+      text-align: right;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .trust-status {
+      min-width: 80px;
+      text-align: right;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    /* ── NEW: Attack Map ── */
+    .map-wrap {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      background: rgba(2,6,23,0.6);
+      border-radius: 12px;
+      border: 1px solid rgba(56,189,248,0.1);
+      overflow: hidden;
+    }
+    #attackMap {
+      width: 100%;
+      height: 100%;
+    }
+    .map-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    @keyframes mapRing {
+      0%   { r: 3; opacity: 1; }
+      100% { r: 14; opacity: 0; }
+    }
+
+    @media (max-width: 1300px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .content-grid { grid-template-columns: 1fr; }
+      .search-grid { grid-template-columns: repeat(2, 1fr); }
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid rgba(56,189,248,0.14); }
+    }
+
+    @media (max-width: 700px) {
+      .stats-grid, .search-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="live-alert" class="live-alert hidden">🚨 NEW ATTACK DETECTED</div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">AI-WAF SOC</div>
+      <div class="brand-sub">Real-Time Security Operations Center</div>
+
+      <div class="side-card">
+        <div class="side-title">Quick Actions</div>
+        <button class="side-btn" onclick="exportCurrentSearch()">⬇ Export Current Search</button>
+        <button class="side-btn" onclick="window.location.href='/api/export?type=' + encodeURIComponent(currentType)">⬇ Export Current Filter</button>
+        <button class="side-btn danger" onclick="clearLogs()">🧹 Clear Logs</button>
+      </div>
+
+      <div class="side-card">
+        <div class="side-title">Threat Filters</div>
+        <button class="filter-btn active" data-type="ALL">ALL</button>
+        <button class="filter-btn" data-type="SQL_INJECTION">SQLi</button>
+        <button class="filter-btn" data-type="XSS">XSS</button>
+        <button class="filter-btn" data-type="COMMAND_INJECTION">CMD</button>
+        <button class="filter-btn" data-type="PATH_TRAVERSAL">PATH</button>
+        <button class="filter-btn" data-type="AI_ANOMALY">AI</button>
+        <button class="filter-btn" data-type="AUTO_BAN">AUTO BAN</button>
+      </div>
+
+      <div class="side-card">
+        <div class="side-title">Monitor</div>
+        <div class="small">Auto refresh every 3 seconds</div>
+        <div class="small" style="margin-top:8px;">Current filter:</div>
+        <div style="font-weight:800; color:#38bdf8; margin-top:6px;" id="filterLabel">ALL</div>
+      </div>
+
+      <!-- NEW: ML Engine status in sidebar -->
+      <div class="side-card" style="border-color:rgba(167,139,250,0.25);">
+        <div class="side-title" style="color:#a78bfa;">ML Engine</div>
+        <div class="small">Model: XGBoost + RF Ensemble</div>
+        <div class="small" style="margin-top:5px;">Block threshold: 75% conf</div>
+        <div class="small" style="margin-top:5px;">Status: <span style="color:#22c55e;font-weight:700;">ACTIVE</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="hero">
+          <h1>🛡️ AI-Powered Web Application Firewall with a Real-Time Security Operations Center (SOC) Dashboard</h1>
+          <p>Real-time monitoring of gateway attacks, AI anomalies, auto-ban activity, threat scores, and live web security events.</p>
+        </div>
+
+        <div class="status-box">
+          <div class="status-label">Threat Status</div>
+          <div class="status-value" id="threatStatus">LIVE MONITORING</div>
+        </div>
+      </div>
+
+      <div class="ticker">
+        🚨 Live SOC Monitoring Active • Gateway Protected • Rule Engine Enabled • XGBoost+RF Ensemble Active • False Positive Reducer ON • Auto-Ban Running
+      </div>
+
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Events</div>
+          <div class="stat-value" id="kpiTotal">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Blocked</div>
+          <div class="stat-value" id="kpiBlocked">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Allowed</div>
+          <div class="stat-value" id="kpiAllowed">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">AI Detections</div>
+          <div class="stat-value" id="kpiAiDetected">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Search Matches</div>
+          <div class="stat-value" id="searchMatchesBig">0</div>
+        </div>
+      </section>
+
+      <!-- Original charts row — unchanged -->
+      <section class="content-grid">
+        <div class="card">
+          <h2>📈 Threat Trend <span class="small">last 5 minutes</span></h2>
+          <div class="chart-wrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>📊 Attack Types</h2>
+          <div class="chart-wrap">
+            <canvas id="typeChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEW ROW 1: Attack Map + ML Confidence Distribution -->
+      <section class="content-grid">
+        <div class="card">
+          <h2>🌍 Live Attack Map <span class="small">real-time blocked IPs</span></h2>
+          <div class="map-wrap">
+            <svg id="attackMap" viewBox="0 0 1000 460" preserveAspectRatio="xMidYMid meet">
+              <rect width="1000" height="460" fill="rgba(2,6,23,0.7)"/>
+              <!-- Grid -->
+              <g stroke="rgba(56,189,248,0.05)" stroke-width="0.8">
+                <line x1="0" y1="115" x2="1000" y2="115"/><line x1="0" y1="230" x2="1000" y2="230"/>
+                <line x1="0" y1="345" x2="1000" y2="345"/>
+                <line x1="250" y1="0" x2="250" y2="460"/><line x1="500" y1="0" x2="500" y2="460"/>
+                <line x1="750" y1="0" x2="750" y2="460"/>
+              </g>
+              <!-- Continent fills -->
+              <path d="M75,75 L185,65 L225,95 L215,160 L185,205 L148,222 L118,200 L88,178 L68,138 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <path d="M155,235 L210,225 L232,262 L222,328 L192,362 L160,342 L138,302 L148,262 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <path d="M428,55 L505,50 L522,78 L512,118 L480,130 L448,118 L428,98 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <path d="M448,148 L512,143 L532,178 L522,262 L490,292 L458,272 L438,232 L443,178 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <path d="M528,45 L755,38 L805,75 L782,148 L722,168 L648,158 L578,138 L538,108 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <path d="M748,278 L842,272 L862,318 L832,358 L778,352 L748,328 Z" fill="rgba(56,189,248,0.07)" stroke="rgba(56,189,248,0.22)" stroke-width="1"/>
+              <!-- Labels -->
+              <text x="128" y="142" fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">NA</text>
+              <text x="168" y="295" fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">SA</text>
+              <text x="458" y="95"  fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">EU</text>
+              <text x="458" y="218" fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">AF</text>
+              <text x="648" y="108" fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">AS</text>
+              <text x="788" y="318" fill="rgba(56,189,248,0.28)" font-size="11" font-family="Consolas">AU</text>
+              <!-- Dots layer -->
+              <g id="mapDots"></g>
+            </svg>
+          </div>
+          <div class="map-legend">
+            <span><span style="color:#ef4444;font-weight:700;">● </span>BLOCK</span>
+            <span><span style="color:#f59e0b;font-weight:700;">● </span>High Conf ≥90%</span>
+            <span><span style="color:#a78bfa;font-weight:700;">● </span>AI Anomaly</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🤖 ML Confidence Distribution <span class="small">last 50 events</span></h2>
+          <div class="chart-wrap">
+            <canvas id="confChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEW ROW 2: Top IPs (upgraded with trust) + Trust Ratings panel -->
+      <section class="content-grid">
+        <div class="card">
+          <h2>🏴 Top Attack IPs</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Count</th>
+                <th>Trust Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="topIpsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>🔐 IP Trust Ratings <span class="small" id="trustCount">0 tracked</span></h2>
+          <div id="trustList">
+            <div class="small" style="padding:8px 0;">No trust data yet. Will build automatically from traffic.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Original search section — unchanged -->
+      <section class="content-grid">
+        <div class="card">
+          <!-- top IPs now moved above, this slot used for search -->
+        </div>
+
+        <div class="card">
+          <h2>🔎 SOC Search <span class="small" id="searchCount">Matches: 0</span></h2>
+          <div class="search-grid">
+            <input id="s_q" placeholder="Keyword">
+            <input id="s_ip" placeholder="IP">
+            <select id="s_type">
+              <option value="ALL">Type: ALL</option>
+              <option value="SQL_INJECTION">SQL_INJECTION</option>
+              <option value="XSS">XSS</option>
+              <option value="COMMAND_INJECTION">COMMAND_INJECTION</option>
+              <option value="PATH_TRAVERSAL">PATH_TRAVERSAL</option>
+              <option value="AI_ANOMALY">AI_ANOMALY</option>
+              <option value="AUTO_BAN">AUTO_BAN</option>
+            </select>
+            <select id="s_decision">
+              <option value="ALL">Decision: ALL</option>
+              <option value="BLOCK">BLOCK</option>
+              <option value="ALLOW">ALLOW</option>
+            </select>
+            <input id="s_from" type="datetime-local">
+            <input id="s_to" type="datetime-local">
+            <button onclick="runSearch()">Search</button>
+            <button onclick="clearSearch()">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Event Feed — 2 new columns added: ML Confidence + Trust -->
+      <section class="card">
+        <h2>🧾 Live Event Feed <span class="small">latest 50 events</span></h2>
+        <div class="events-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Event ID</th>
+                <th>Time</th>
+                <th>IP</th>
+                <th>Source</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Decision</th>
+                <th>Rule Score</th>
+                <th>AI Score</th>
+                <th>ML Confidence</th><!-- NEW -->
+                <th>Trust</th><!-- NEW -->
+                <th>AI Flag</th>
+                <th>Final</th>
+                <th>Strike</th>
+                <th>Ban Left</th>
+                <th>Threats</th>
+                <th>Payload</th>
+                <th>View</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let currentType = "ALL";
+    let searchMode = false;
+    let lastTopTs = 0;
+    let trustCache = {}; // ip -> score
+
+    const trendCtx = document.getElementById("trendChart");
+    const typeCtx  = document.getElementById("typeChart");
+
+    function buildDefaultTrendLabels() {
+      const labels = [];
+      const now = new Date();
+      for (let i = 4; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 60 * 1000);
+        labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      }
+      return labels;
+    }
+
+    // ── Original charts (unchanged) ──────────────────────
+    const trendChart = new Chart(trendCtx, {
+      type: "line",
+      data: {
+        labels: buildDefaultTrendLabels(),
+        datasets: [{
+          label: "Blocked Events",
+          data: [0, 0, 0, 0, 0],
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56,189,248,0.18)",
+          pointBackgroundColor: "#38bdf8",
+          pointBorderColor: "#38bdf8",
+          pointRadius: 4, pointHoverRadius: 6,
+          borderWidth: 3, fill: true, tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { labels: { color: "#cbd5e1" } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { beginAtZero: true, suggestedMax: 5, ticks: { color: "#94a3b8", precision: 0, stepSize: 1 }, grid: { color: "rgba(148,163,184,0.08)" } }
+        }
+      }
+    });
+
+    const typeChart = new Chart(typeCtx, {
+      type: "bar",
+      data: {
+        labels: ["NO DATA"],
+        datasets: [{
+          label: "Count", data: [0],
+          backgroundColor: ["rgba(56,189,248,0.75)","rgba(239,68,68,0.75)","rgba(34,197,94,0.75)","rgba(250,204,21,0.75)","rgba(168,85,247,0.75)","rgba(244,114,182,0.75)"],
+          borderRadius: 10
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { labels: { color: "#cbd5e1" } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { beginAtZero: true, ticks: { color: "#94a3b8", precision: 0, stepSize: 1 }, grid: { color: "rgba(148,163,184,0.08)" } }
+        }
+      }
+    });
+
+    // ── NEW: ML Confidence Distribution chart ─────────────
+    const confChart = new Chart(document.getElementById("confChart"), {
+      type: "bar",
+      data: {
+        labels: ["0-20%","21-40%","41-60%","61-75%","76-90%","91-100%"],
+        datasets: [{
+          label: "Events",
+          data: [0,0,0,0,0,0],
+          backgroundColor: [
+            "rgba(34,197,94,0.7)","rgba(34,197,94,0.55)",
+            "rgba(245,158,11,0.6)","rgba(245,158,11,0.8)",
+            "rgba(239,68,68,0.7)","rgba(239,68,68,0.95)"
+          ],
+          borderRadius: 8
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { labels: { color: "#cbd5e1" } } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", font: { size: 11 } }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { beginAtZero: true, ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } }
+        }
+      }
+    });
+
+    // ── NEW: Attack Map helpers ───────────────────────────
+    const ZONES = [
+      { x:[75,225],  y:[65,222]  }, // NA
+      { x:[138,232], y:[225,362] }, // SA
+      { x:[428,522], y:[50,130]  }, // EU
+      { x:[438,532], y:[143,292] }, // AF
+      { x:[528,805], y:[38,168]  }, // AS
+      { x:[748,862], y:[272,358] }, // AU
+    ];
+
+    function ipToPos(ip) {
+      const p = (ip || "").split(".").map(x => parseInt(x) || 0);
+      const zone = ZONES[p[0] % ZONES.length];
+      const x = zone.x[0] + (p[1] % Math.max(1, zone.x[1] - zone.x[0]));
+      const y = zone.y[0] + (p[2] % Math.max(1, zone.y[1] - zone.y[0]));
+      return { x, y };
+    }
+
+    function addMapDot(ip, color) {
+      const pos = ipToPos(ip);
+      const layer = document.getElementById("mapDots");
+
+      // Static dot
+      const dot = document.createElementNS("http://www.w3.org/2000/svg","circle");
+      dot.setAttribute("cx", pos.x); dot.setAttribute("cy", pos.y);
+      dot.setAttribute("r","3"); dot.setAttribute("fill", color); dot.setAttribute("opacity","0.9");
+      layer.appendChild(dot);
+      setTimeout(() => { if(dot.parentNode) layer.removeChild(dot); }, 9000);
+
+      // Pulse ring animation
+      const ring = document.createElementNS("http://www.w3.org/2000/svg","circle");
+      ring.setAttribute("cx", pos.x); ring.setAttribute("cy", pos.y);
+      ring.setAttribute("r","3"); ring.setAttribute("fill","none");
+      ring.setAttribute("stroke", color); ring.setAttribute("stroke-width","1.5");
+      layer.appendChild(ring);
+      let r = 3, op = 1;
+      const anim = setInterval(() => {
+        r += 1.2; op -= 0.07;
+        ring.setAttribute("r", r); ring.setAttribute("opacity", Math.max(0, op));
+        if (op <= 0) { clearInterval(anim); if(ring.parentNode) layer.removeChild(ring); }
+      }, 35);
+    }
+
+    // ── NEW: Trust helpers ────────────────────────────────
+    function trustColor(score) {
+      if (score >= 70) return "#22c55e";
+      if (score >= 40) return "#f59e0b";
+      return "#ef4444";
+    }
+
+    function trustStatus(score) {
+      if (score >= 70) return "✅ Trusted";
+      if (score >= 40) return "⚠️ Neutral";
+      return "🚫 Suspect";
+    }
+
+    function renderTrustPanel(logs) {
+      // Derive trust from block/allow ratio per IP
+      const hits = {}, blocks = {};
+      logs.forEach(l => {
+        const ip = l.ip || "unknown";
+        hits[ip] = (hits[ip] || 0) + 1;
+        if (String(l.decision).toUpperCase() === "BLOCK") blocks[ip] = (blocks[ip] || 0) + 1;
+      });
+      Object.keys(hits).forEach(ip => {
+        const rate = (blocks[ip] || 0) / hits[ip];
+        trustCache[ip] = Math.round(Math.max(0, Math.min(100, 100 - rate * 100)));
+      });
+
+      const entries = Object.entries(trustCache).sort(([,a],[,b]) => b - a).slice(0, 10);
+      document.getElementById("trustCount").textContent = `${Object.keys(trustCache).length} tracked`;
+
+      const list = document.getElementById("trustList");
+      if (entries.length === 0) {
+        list.innerHTML = `<div class="small" style="padding:8px 0;">No data yet.</div>`;
+        return;
+      }
+      list.innerHTML = "";
+      entries.forEach(([ip, score]) => {
+        const row = document.createElement("div");
+        row.className = "trust-row";
+        row.innerHTML = `
+          <span class="trust-ip">${ip}</span>
+          <div class="trust-bar-wrap">
+            <div class="trust-bar" style="width:${score}%;background:${trustColor(score)};"></div>
+          </div>
+          <span class="trust-score-val" style="color:${trustColor(score)};">${score}</span>
+          <span class="trust-status">${trustStatus(score)}</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    // ── NEW: Confidence chart update ──────────────────────
+    function updateConfChart(logs) {
+      const b = [0,0,0,0,0,0];
+      logs.forEach(l => {
+        const c = Number(l.ai_score || 0);
+        if      (c <= 20) b[0]++;
+        else if (c <= 40) b[1]++;
+        else if (c <= 60) b[2]++;
+        else if (c <= 75) b[3]++;
+        else if (c <= 90) b[4]++;
+        else              b[5]++;
+      });
+      confChart.data.datasets[0].data = b;
+      confChart.update();
+    }
+
+    // ── NEW: Confidence meter HTML ────────────────────────
+    function confMeterHTML(score) {
+      const c = Number(score || 0);
+      const color = c >= 76 ? "#ef4444" : c >= 41 ? "#f59e0b" : "#22c55e";
+      return `<div class="conf-meter">
+        <div class="conf-track"><div class="conf-fill" style="width:${c}%;background:${color};"></div></div>
+        <span class="conf-num" style="color:${color};">${c}%</span>
+      </div>`;
+    }
+
+    function trustMeterHTML(ip) {
+      const score = trustCache[ip] ?? 50;
+      const color = trustColor(score);
+      return `<div class="conf-meter">
+        <div class="conf-track"><div class="conf-fill" style="width:${score}%;background:${color};"></div></div>
+        <span class="conf-num" style="color:${color};">${score}</span>
+      </div>`;
+    }
+
+    // ── Original helpers (unchanged) ─────────────────────
+    function setActiveButton(type) {
+      document.querySelectorAll(".filter-btn[data-type]").forEach(b => b.classList.remove("active"));
+      const btn = document.querySelector(`.filter-btn[data-type="${type}"]`);
+      if (btn) btn.classList.add("active");
+      document.getElementById("filterLabel").textContent = type;
+    }
+
+    function formatTime(ts, fallbackText) {
+      if (ts) { const d = new Date(Number(ts) * 1000); if (!isNaN(d.getTime())) return d.toLocaleTimeString(); }
+      return fallbackText || "-";
+    }
+
+    function normalizeThreats(log) {
+      return (log.threats || log.attacks || []).map(x => String(x));
+    }
+
+    function toEpochSeconds(dtLocalValue) {
+      if (!dtLocalValue) return null;
+      const d = new Date(dtLocalValue);
+      return isNaN(d.getTime()) ? null : Math.floor(d.getTime() / 1000);
+    }
+
+    function showLiveAlert() {
+      const alertBox = document.getElementById("live-alert");
+      alertBox.classList.remove("hidden");
+      setTimeout(() => alertBox.classList.add("hidden"), 2500);
+    }
+
+    function playAlertSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine"; osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.25);
+      } catch(err) {}
+    }
+
+    function scoreBadgeClass(score) {
+      const s = Number(score || 0);
+      if (s >= 80) return "score-high";
+      if (s >= 40) return "score-medium";
+      return "score-low";
+    }
+
+    async function clearLogs() {
+      if (!confirm("Clear all SOC logs?")) return;
+      try {
+        const res = await fetch("/api/clear_logs", { method: "POST" });
+        const data = await res.json();
+        if (data.success) { lastTopTs = 0; alert("Logs cleared successfully"); await refresh(); }
+        else alert("Failed to clear logs");
+      } catch(err) { alert("Error clearing logs"); }
+    }
+
+    function exportCurrentSearch() {
+      const params = new URLSearchParams();
+      const q = document.getElementById("s_q").value || "";
+      const ip = document.getElementById("s_ip").value || "";
+      const type = document.getElementById("s_type").value || "ALL";
+      const decision = document.getElementById("s_decision").value || "ALL";
+      const from_ts = toEpochSeconds(document.getElementById("s_from").value);
+      const to_ts = toEpochSeconds(document.getElementById("s_to").value);
+      if (q) params.set("q", q);
+      if (ip) params.set("ip", ip);
+      params.set("type", type); params.set("decision", decision);
+      if (from_ts != null) params.set("from_ts", String(from_ts));
+      if (to_ts != null) params.set("to_ts", String(to_ts));
+      window.location.href = `/api/export_search?${params.toString()}`;
+    }
+
+    async function runSearch() { searchMode = true; await refresh(); }
+
+    async function clearSearch() {
+      searchMode = false;
+      document.getElementById("s_q").value = "";
+      document.getElementById("s_ip").value = "";
+      document.getElementById("s_type").value = "ALL";
+      document.getElementById("s_decision").value = "ALL";
+      document.getElementById("s_from").value = "";
+      document.getElementById("s_to").value = "";
+      document.getElementById("searchCount").textContent = "Matches: 0";
+      document.getElementById("searchMatchesBig").textContent = "0";
+      await refresh();
+    }
+
+    function safeTrendData(summary) {
+      const labels = summary?.trend?.labels || buildDefaultTrendLabels();
+      let counts = summary?.trend?.counts || [];
+      if (!Array.isArray(counts) || counts.length === 0) counts = new Array(labels.length).fill(0);
+      if (counts.length < labels.length) counts = counts.concat(new Array(labels.length - counts.length).fill(0));
+      if (counts.length > labels.length) counts = counts.slice(0, labels.length);
+      return { labels, counts: counts.map(v => Number(v || 0)) };
+    }
+
+    function safeTypeData(summary) {
+      const typeCounts = summary?.type_counts || {};
+      const labels = Object.keys(typeCounts);
+      const values = labels.map(k => Number(typeCounts[k] || 0));
+      return labels.length === 0 ? { labels: ["NO DATA"], values: [0] } : { labels, values };
+    }
+
+    // ── Main refresh (original + new additions) ───────────
+    async function refresh() {
+      try {
+        const sRes = await fetch(`/api/summary?type=${encodeURIComponent(currentType)}`);
+        const summary = await sRes.json();
+
+        // Original KPIs
+        document.getElementById("kpiTotal").textContent = summary.total ?? 0;
+        document.getElementById("kpiBlocked").textContent = summary.blocked ?? 0;
+        document.getElementById("kpiAllowed").textContent = summary.allowed ?? 0;
+        const aiDetected = Object.entries(summary.type_counts || {})
+          .filter(([k]) => String(k).toUpperCase() === "AI_ANOMALY")
+          .reduce((acc,[,v]) => acc + Number(v || 0), 0);
+        document.getElementById("kpiAiDetected").textContent = aiDetected;
+
+        // Original trend chart
+        const trend = safeTrendData(summary);
+        trendChart.data.labels = trend.labels;
+        trendChart.data.datasets[0].data = trend.counts;
+        trendChart.options.scales.y.suggestedMax = Math.max(5, Math.max(...trend.counts) + 1);
+        trendChart.update();
+
+        // Original type chart
+        const typeData = safeTypeData(summary);
+        typeChart.data.labels = typeData.labels;
+        typeChart.data.datasets[0].data = typeData.values;
+        typeChart.update();
+
+        // Fetch logs
+        let logs = [];
+        if (!searchMode) {
+          const eRes = await fetch(`/api/logs?type=${encodeURIComponent(currentType)}&limit=50`);
+          const ev = await eRes.json();
+          logs = ev.logs || [];
+          document.getElementById("searchCount").textContent = "Matches: 0";
+          document.getElementById("searchMatchesBig").textContent = "0";
+        } else {
+          const q = document.getElementById("s_q").value || "";
+          const ip = document.getElementById("s_ip").value || "";
+          const type = document.getElementById("s_type").value || "ALL";
+          const decision = document.getElementById("s_decision").value || "ALL";
+          const from_ts = toEpochSeconds(document.getElementById("s_from").value);
+          const to_ts = toEpochSeconds(document.getElementById("s_to").value);
+          const params = new URLSearchParams();
+          if (q) params.set("q", q); if (ip) params.set("ip", ip);
+          params.set("type", type); params.set("decision", decision);
+          if (from_ts != null) params.set("from_ts", String(from_ts));
+          if (to_ts != null) params.set("to_ts", String(to_ts));
+          params.set("limit", "50");
+          const sr = await fetch(`/api/search?${params.toString()}`);
+          const sv = await sr.json();
+          logs = sv.logs || [];
+          document.getElementById("searchCount").textContent = `Matches: ${sv.count ?? logs.length}`;
+          document.getElementById("searchMatchesBig").textContent = `${sv.count ?? logs.length}`;
+        }
+
+        // NEW: update conf chart + trust panel
+        updateConfChart(logs);
+        renderTrustPanel(logs);
+
+        // NEW: Top IPs with trust columns
+        const topIpsBody = document.getElementById("topIpsBody");
+        topIpsBody.innerHTML = "";
+        (summary.top_ips || []).forEach(row => {
+          const score = trustCache[row.ip] ?? 50;
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${row.ip}</td>
+            <td>${row.count}</td>
+            <td>${trustMeterHTML(row.ip)}</td>
+            <td><span class="badge" style="color:${trustColor(score)};">${trustStatus(score)}</span></td>
+          `;
+          topIpsBody.appendChild(tr);
+        });
+
+        // Attack detection + map dots
+        const newTopTs = logs.length ? Number(logs[0].ts || 0) : 0;
+        const hasNewAttack = lastTopTs !== 0 && newTopTs > lastTopTs;
+
+        if (hasNewAttack) {
+          logs.filter(l => Number(l.ts || 0) > lastTopTs && String(l.decision).toUpperCase() === "BLOCK")
+            .slice(0, 5)
+            .forEach(l => {
+              const threats = normalizeThreats(l);
+              const color = threats.includes("AI_ANOMALY") ? "#a78bfa"
+                          : Number(l.ai_score || 0) >= 90 ? "#f59e0b"
+                          : "#ef4444";
+              addMapDot(l.ip || "10.0.0.1", color);
+            });
+        }
+
+        // Render event table — original columns + 2 new
+        const tableBody = document.getElementById("log-table-body");
+        tableBody.innerHTML = "";
+
+        logs.forEach((log, index) => {
+          const threats = normalizeThreats(log);
+          const decision = String(log.decision || "-").toUpperCase();
+          const ruleScore = log.risk_score ?? 0;
+          const aiScore = log.ai_score ?? 0;
+          const aiMal = (Number(aiScore) > 0 || threats.includes("AI_ANOMALY")) ? "YES" : "NO";
+          const finalScore = log.final_score ?? Math.max(ruleScore, aiScore);
+          const strike = log.strike ?? 0;
+          const banLeft = (log.ban_seconds_left != null) ? Number(log.ban_seconds_left)
+            : (log.ban_until ? Math.max(0, Number(log.ban_until) - Math.floor(Date.now() / 1000)) : 0);
+          const ip = log.ip || log.client_ip || "unknown";
+          const badges = threats.map(t => `<span class="badge">${t}</span>`).join("");
+          const aiClass = aiMal === "YES" ? "badge-ai-yes" : "badge-ai-no";
+          const viewLink = log.event_id
+            ? `<a href="/event/${log.event_id}" target="_blank" style="color:#38bdf8;font-weight:700;">Open</a>`
+            : "-";
+
+          const tr = document.createElement("tr");
+          if (hasNewAttack && index === 0) tr.classList.add("new-row");
+
+          tr.innerHTML = `
+            <td class="mono">${log.event_id || "-"}</td>
+            <td>${formatTime(log.ts, log.time || "-")}</td>
+            <td>${ip}</td>
+            <td>${log.source || "-"}</td>
+            <td>${log.method || "-"}</td>
+            <td>${log.path || "-"}</td>
+            <td class="${decision}">${decision}</td>
+            <td><span class="badge ${scoreBadgeClass(ruleScore)}">${ruleScore}</span></td>
+            <td><span class="badge ${scoreBadgeClass(aiScore)}">${aiScore}</span></td>
+            <td>${confMeterHTML(aiScore)}</td>
+            <td>${trustMeterHTML(ip)}</td>
+            <td><span class="badge ${aiClass}">${aiMal}</span></td>
+            <td><span class="badge ${scoreBadgeClass(finalScore)}">${finalScore}</span></td>
+            <td><span class="badge">${strike}</span></td>
+            <td><span class="badge ${banLeft > 0 ? 'BAN' : ''}">${banLeft}s</span></td>
+            <td>${badges || '<span class="small">-</span>'}</td>
+            <td class="mono">${String(log.payload_preview || log.payload || log.input || "").slice(0, 500)}</td>
+            <td>${viewLink}</td>
+          `;
+          tableBody.appendChild(tr);
+        });
+
+        if (hasNewAttack) {
+          document.getElementById("threatStatus").textContent = "THREAT DETECTED";
+          showLiveAlert(); playAlertSound();
+          setTimeout(() => document.getElementById("threatStatus").textContent = "LIVE MONITORING", 3000);
+        }
+
+        lastTopTs = newTopTs;
+      } catch(err) {
+        console.log("Dashboard refresh error:", err);
+      }
+    }
+
+    document.querySelectorAll(".filter-btn[data-type]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        currentType = btn.dataset.type;
+        setActiveButton(currentType);
+        await refresh();
+      });
+    });
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

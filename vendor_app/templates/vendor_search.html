@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Products</title>
+    <link rel="stylesheet" href="/vendor-static/vendor_style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Product Search</h1>
+
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/login">Login</a>
+        <a href="/products">Products</a>
+        <a href="/contact">Contact</a>
+    </div>
+
+    <form method="GET" action="/search" class="card">
+        <label>Search Product</label>
+        <input type="text" name="q" value="{{ query }}" placeholder="Search by product or category">
+        <button type="submit">Search</button>
+    </form>
+
+    <div class="grid">
+        {% for product in products %}
+        <div class="card">
+            <h3>{{ product.name }}</h3>
+            <p>Category: {{ product.category }}</p>
+            <p>Price: ₹{{ product.price }}</p>
+        </div>
+        {% else %}
+        <div class="card">
+            <p>No products found.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title><title>AI-Powered Web Application Firewall</title></title>
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <h1>🛡️ AI-Powered Web Application Firewall</h1>
+<h2>Real-Time Security Operations Center (SOC) Dashboard</h2>
+  <div class="stats">
+    <div id="total">Total: 0</div>
+    <div id="blocked">Blocked: 0</div>
+    <div id="allowed">Allowed: 0</div>
+  </div>
+
+  <!-- Debug line -->
+  <div id="debug" style="color:white; margin:10px 0;"></div>
+
+  <!-- Filter Buttons -->
+  <div style="margin: 10px 0; display:flex; gap:10px; flex-wrap:wrap;">
+    <button class="filter-btn" onclick="setFilter('ALL')">All</button>
+    <button class="filter-btn" onclick="setFilter('SQL_INJECTION')">SQLi</button>
+    <button class="filter-btn" onclick="setFilter('XSS')">XSS</button>
+    <button class="filter-btn" onclick="setFilter('COMMAND_INJECTION')">Command</button>
+    <button class="filter-btn" onclick="setFilter('ANOMALY')">Anomaly</button>
+  </div>
+
+  <h2>Live Attack Logs</h2>
+
+  <!-- Chart -->
+  <div style="width: 700px; margin: 20px 0;">
+    <canvas id="attackChart"></canvas>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>IP</th>
+        <th>Decision</th>
+        <th>AI Confidence</th>
+        <th>Threats</th>
+        <th>Payload</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+
+  <script>
+    let chartInstance = null;
+    let currentFilter = "ALL";
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      loadLogs(); // refresh table instantly
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch("/api/logs", { cache: "no-store" });
+        const data = await res.json();
+
+        // supports both formats: [] or {logs:[]}
+        const logs = Array.isArray(data) ? data : (data.logs || []);
+
+        // APPLY FILTER HERE ✅
+        let filteredLogs = logs;
+        if (currentFilter !== "ALL") {
+          filteredLogs = logs.filter(log => {
+            const threatsArr = (log.threats || log.attacks || []);
+            return threatsArr.includes(currentFilter);
+          });
+        }
+
+        // Debug info
+        document.getElementById("debug").innerText =
+          `API /api/logs returned: ${logs.length} rows | Showing: ${filteredLogs.length} | Filter: ${currentFilter}`;
+
+        const tbody = document.getElementById("logBody");
+        tbody.innerHTML = "";
+
+        // Render filtered logs ✅
+        filteredLogs.forEach((log) => {
+          const threatsText = (log.threats || log.attacks || []).join(", ");
+          const conf = (log.ai_confidence !== undefined && log.ai_confidence !== null)
+            ? (Number(log.ai_confidence) * 100).toFixed(1) + "%"
+            : "";
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${log.time || ""}</td>
+            <td>${log.ip || ""}</td>
+            <td>${log.decision || ""}</td>
+            <td>${conf}</td>
+            <td>${threatsText}</td>
+            <td style="max-width:650px; word-break:break-word;">${log.payload || ""}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+      } catch (e) {
+        document.getElementById("debug").innerText = "❌ JS error(loadLogs): " + e;
+        console.error(e);
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch("/api/stats", { cache: "no-store" });
+        const stats = await res.json();
+
+        document.getElementById("total").innerText = "Total: " + (stats.total ?? 0);
+        document.getElementById("blocked").innerText = "Blocked: " + (stats.blocked ?? 0);
+        document.getElementById("allowed").innerText = "Allowed: " + (stats.allowed ?? 0);
+      } catch (e) {
+        document.getElementById("debug").innerText = "❌ JS error(loadStats): " + e;
+        console.error(e);
+      }
+    }
+
+    async function loadAttackChart() {
+      try {
+        const res = await fetch("/api/attack_chart", { cache: "no-store" });
+        const counts = await res.json();
+
+        const labels = Object.keys(counts);
+        const values = Object.values(counts);
+
+        const canvas = document.getElementById("attackChart");
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "Attack Count",
+              data: values
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: true } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      } catch (e) {
+        document.getElementById("debug").innerText = "❌ JS error(loadAttackChart): " + e;
+        console.error(e);
+      }
+    }
+
+    setInterval(() => {
+      loadLogs();
+      loadStats();
+      loadAttackChart();
+    }, 2000);
+
+    loadLogs();
+    loadStats();
+    loadAttackChart();
+  </script>
+</body>
+</html>

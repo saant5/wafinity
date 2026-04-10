@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "id": "R1",
+      "type": "BLOCK_CONTAINS",
+      "value": "<script>",
+      "severity": 40
+    },
+    {
+      "id": "R2",
+      "type": "BLOCK_CONTAINS",
+      "value": "union select",
+      "severity": 50
+    },
+    {
+      "id": "R100",
+      "type": "BLOCK_CONTAINS",
+      "value": "select * from",
+      "severity": 40
+    }
+  ]
+}
