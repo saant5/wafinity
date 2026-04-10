@@ -6,6 +6,8 @@
 # + Protected Vendor Web Application Proxy
 # + Upgraded HTML Block Page Support
 # + Shared Event ID support
+# + URL Decode Fix for encoded attack detection
+# + Proxy routing fix
 
 from flask import (
     Flask,
@@ -37,7 +39,9 @@ def ist_now_str():
 
 PROJECT_NAME = "AI-Powered Web Application Firewall with a Real-Time Security Operations Center (SOC) Dashboard"
 
-# Updated: backend URL from environment variable
+# ── Backend URL from environment variable ──
+# On Render: set BACKEND_URL to your vendor backend service URL
+# e.g. https://your-vendor-backend.onrender.com
 BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:5001")
 
 LOG_DIR = "logs"
@@ -85,6 +89,27 @@ ALL_THREAT_TYPES = [
     "AI_ANOMALY",
     "AUTO_BAN",
 ]
+
+# ── Internal WAF routes that should NOT be proxied ──
+INTERNAL_PREFIXES = (
+    "/dashboard",
+    "/api/",
+    "/analyze",
+    "/event/",
+    "/health",
+    "/admin/",
+    "/shop",
+)
+
+# ── Static file prefixes to forward directly without WAF inspection ──
+STATIC_PREFIXES = (
+    "/favicon.ico",
+    "/vendor-static",
+    "/static",
+    "/css",
+    "/js",
+    "/images",
+)
 
 
 # ===============================
@@ -152,10 +177,20 @@ def register_ai_hit(ip: str):
 
 
 def build_payload_for_analysis():
+    """
+    FIX: Decode URL-encoded payloads so that attacks like
+    %27%20OR%20%27x%27=%27x  are decoded to  ' OR 'x'='x
+    and correctly detected by the rule engine.
+    """
     path_qs = request.full_path if request.query_string else request.path
     body = request.get_data(cache=True) or b""
     body_text = body.decode("utf-8", errors="ignore")
-    return f"{request.method} {path_qs}\n{body_text}"
+
+    # Decode URL-encoded characters in the full URL
+    raw_url = urllib.parse.unquote_plus(request.url)
+    decoded_path_qs = urllib.parse.unquote_plus(path_qs)
+
+    return f"{request.method} {decoded_path_qs}\n{raw_url}\n{body_text}"
 
 
 def payload_preview_from_text(payload: str, max_len: int = 300) -> str:
@@ -343,30 +378,45 @@ def forward_request(path):
     headers["X-Gateway-Auth"] = INTERNAL_GATEWAY_TOKEN
     headers["X-Forwarded-By"] = "WAFinity-Gateway"
 
-    resp = requests.request(
-        method=request.method,
-        url=target_url,
-        params=request.args,
-        data=request.get_data(cache=True),
-        headers=headers,
-        cookies=request.cookies,
-        allow_redirects=False,
-        timeout=15,
-    )
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            params=request.args,
+            data=request.get_data(cache=True),
+            headers=headers,
+            cookies=request.cookies,
+            allow_redirects=False,
+            timeout=15,
+        )
 
-    excluded_headers = {
-        "content-encoding",
-        "content-length",
-        "transfer-encoding",
-        "connection",
-    }
-    response_headers = [
-        (name, value)
-        for name, value in resp.raw.headers.items()
-        if name.lower() not in excluded_headers
-    ]
+        excluded_headers = {
+            "content-encoding",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+        }
+        response_headers = [
+            (name, value)
+            for name, value in resp.raw.headers.items()
+            if name.lower() not in excluded_headers
+        ]
 
-    return Response(resp.content, status=resp.status_code, headers=response_headers)
+        return Response(resp.content, status=resp.status_code, headers=response_headers)
+
+    except requests.exceptions.ConnectionError:
+        # FIX: Better error when backend is unreachable
+        return jsonify({
+            "error": "Backend service unreachable",
+            "hint": "Set BACKEND_URL environment variable on Render to your vendor backend URL",
+            "backend": BACKEND,
+        }), 502
+
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Backend service timed out"}), 504
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ===============================
@@ -780,17 +830,28 @@ def shop_path_redirect(path):
 @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 @app.route("/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def proxy(path):
-    if request.path.startswith(
-        ("/favicon.ico", "/vendor-static", "/static", "/css", "/js", "/images")
-    ):
+
+    # ── FIX 1: Forward static files directly without WAF inspection ──
+    if request.path.startswith(STATIC_PREFIXES):
         return forward_request(path)
 
-    if request.path.startswith(("/dashboard", "/api/", "/analyze", "/event/", "/health")):
+    # ── FIX 2: Let Flask handle its own registered internal routes ──
+    # DO NOT return 404 here — Flask already routes /dashboard, /api/, etc.
+    # to their registered handlers above. The proxy only handles
+    # everything else (vendor app traffic).
+    if request.path.startswith(INTERNAL_PREFIXES):
+        # This should never be reached because Flask routes registered
+        # above take priority. But just in case, skip WAF and return 404
+        # only for truly unknown internal paths.
         return Response("Not found", status=404)
 
+    # ── Get client IP ──
     client_ip = get_client_ip()
+
+    # ── FIX 3: Build payload with URL-decoded content for better detection ──
     payload = build_payload_for_analysis()
 
+    # ── Check Auto-Ban ──
     if AUTO_BAN_ENABLED and is_ip_banned(client_ip):
         event = {
             "event_id": generate_event_id(),
@@ -832,6 +893,7 @@ def proxy(path):
             403,
         )
 
+    # ── WAF Analysis ──
     result = analyze_payload_text(payload)
 
     banned_now = False
@@ -869,7 +931,6 @@ def proxy(path):
     if result["decision"] == "BLOCK":
         send_block_alert(event)
 
-    if result["decision"] == "BLOCK":
         if wants_html_response():
             return blocked_page_response(
                 event,
@@ -896,6 +957,7 @@ def proxy(path):
             403,
         )
 
+    # ── FIX 4: Safe request — forward to vendor backend ──
     return forward_request(path)
 
 
@@ -929,10 +991,8 @@ def admin_allowlist():
     return jsonify({"success": True, "message": "Allowlist updated."}), 200
 
 
-# Ensure log directory exists at startup
+# ── Ensure log directory exists at startup ──
 ensure_logs_dir()
-
-
 
 
 if __name__ == "__main__":
