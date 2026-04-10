@@ -1,0 +1,9 @@
+flask
+requests
+joblib
+numpy
+scipy
+scikit-learn
+lightgbm
+gunicorn
+pandas

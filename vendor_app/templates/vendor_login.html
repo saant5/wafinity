@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vendor Login</title>
+    <link rel="stylesheet" href="/vendor-static/vendor_style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Vendor Login</h1>
+
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/products">Products</a>
+        <a href="/search">Search</a>
+        <a href="/contact">Contact</a>
+    </div>
+
+    {% if message %}
+        <div class="success">{{ message }}</div>
+    {% endif %}
+
+    <form method="POST" class="card">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Enter username">
+
+        <label>Password</label>
+        <input type="text" name="password" placeholder="Enter password">
+
+        <button type="submit">Login</button>
+    </form>
+</div>
+</body>
+</html>

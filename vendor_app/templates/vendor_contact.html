@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Contact Vendor</title>
+    <link rel="stylesheet" href="/vendor-static/vendor_style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Contact Vendor</h1>
+
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/login">Login</a>
+        <a href="/products">Products</a>
+        <a href="/search">Search</a>
+    </div>
+
+    {% if message %}
+        <div class="success">{{ message }}</div>
+    {% endif %}
+
+    <form method="POST" class="card">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="Your name">
+
+        <label>Email</label>
+        <input type="text" name="email" placeholder="Your email">
+
+        <label>Message</label>
+        <textarea name="message" rows="5" placeholder="Write your message"></textarea>
+
+        <button type="submit">Send Message</button>
+    </form>
+</div>
+</body>
+</html>

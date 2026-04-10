@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Products</title>
+    <link rel="stylesheet" href="/vendor-static/vendor_style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Products</h1>
+
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/login">Login</a>
+        <a href="/search">Search</a>
+        <a href="/contact">Contact</a>
+    </div>
+
+    <div class="grid">
+        {% for product in products %}
+        <div class="card">
+            <h3>{{ product.name }}</h3>
+            <p>Category: {{ product.category }}</p>
+            <p>Price: ₹{{ product.price }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</body>
+</html>

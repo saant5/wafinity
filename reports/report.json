@@ -1,0 +1,81 @@
+{
+    "target": "http://testphp.vulnweb.com",
+    "scan_time": "2026-02-25 00:23:13.565721",
+    "total_findings": 5,
+    "findings": [
+        {
+            "target": "http://testphp.vulnweb.com",
+            "payload": "' OR 1=1 --",
+            "analysis": {
+                "payload": "' OR 1=1 --",
+                "decoded": [
+                    "' OR 1=1 --",
+                    "9\u001d"
+                ],
+                "threats": [
+                    "SQL_INJECTION"
+                ],
+                "classification": "SQL_ATTACK",
+                "risk": 50
+            }
+        },
+        {
+            "target": "http://testphp.vulnweb.com",
+            "payload": "<script>alert(1)</script>",
+            "analysis": {
+                "payload": "<script>alert(1)</script>",
+                "decoded": [
+                    "<script>alert(1)</script>"
+                ],
+                "threats": [
+                    "XSS"
+                ],
+                "classification": "XSS_ATTACK",
+                "risk": 40
+            }
+        },
+        {
+            "target": "http://testphp.vulnweb.com",
+            "payload": "../../etc/passwd",
+            "analysis": {
+                "payload": "../../etc/passwd",
+                "decoded": [
+                    "../../etc/passwd"
+                ],
+                "threats": [],
+                "classification": "CLEAN",
+                "risk": 0
+            }
+        },
+        {
+            "target": "http://testphp.vulnweb.com",
+            "payload": "' UNION SELECT NULL,NULL --",
+            "analysis": {
+                "payload": "' UNION SELECT NULL,NULL --",
+                "decoded": [
+                    "' UNION SELECT NULL,NULL --"
+                ],
+                "threats": [
+                    "SQL_INJECTION"
+                ],
+                "classification": "SQL_ATTACK",
+                "risk": 50
+            }
+        },
+        {
+            "target": "http://testphp.vulnweb.com",
+            "payload": "admin' --",
+            "analysis": {
+                "payload": "admin' --",
+                "decoded": [
+                    "admin' --"
+                ],
+                "threats": [
+                    "SQL_INJECTION"
+                ],
+                "classification": "SQL_ATTACK",
+                "risk": 50
+            }
+        }
+    ]
+}
