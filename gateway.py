@@ -92,7 +92,7 @@ ALL_THREAT_TYPES = [
 
 # ── Internal WAF routes that should NOT be proxied ──
 INTERNAL_PREFIXES = (
-    "/dashboard",
+    
     "/api/",
     "/analyze",
     "/event/",
