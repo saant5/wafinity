@@ -8,3 +8,4 @@ lightgbm
 gunicorn
 pandas
 xgboost
+python-dotenv
