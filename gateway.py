@@ -1,13 +1,6 @@
 # gateway.py
-# Hybrid WAF + Real ML Model + Adaptive Auto-Ban + SOC Dashboard
-# + Attack Simulator API Support
-# + Clear Logs API
-# + Export Filter API
-# + Protected Vendor Web Application Proxy
-# + Upgraded HTML Block Page Support
-# + Shared Event ID support
-# + URL Decode Fix for encoded attack detection
-# + Proxy routing fix
+# Render-ready single-service WAFinity demo
+# One Flask app only: WAF + SOC Dashboard + Demo Vendor App
 
 from flask import (
     Flask,
@@ -16,8 +9,10 @@ from flask import (
     jsonify,
     send_file,
     render_template,
+    render_template_string,
+    redirect,
+    url_for,
 )
-import requests
 import json
 import os
 import time
@@ -26,12 +21,12 @@ import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 from core.engine import detect
-from ml_engine.predictor import predict_payload, predict_smart, add_to_allowlist, update_trust
+from ml_engine.predictor import predict_smart, add_to_allowlist, update_trust
 from ml_engine.train_model import log_feedback
 from alerts.alerts import send_block_alert
 
-# ── IST Timezone (India Standard Time = UTC+5:30) ──
 IST = timezone(timedelta(hours=5, minutes=30))
+
 
 def ist_now_str():
     return datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
@@ -39,32 +34,14 @@ def ist_now_str():
 
 PROJECT_NAME = "AI-Powered Web Application Firewall with a Real-Time Security Operations Center (SOC) Dashboard"
 
-# ── Backend URL from environment variable ──
-# On Render: set BACKEND_URL to your vendor backend service URL
-# e.g. https://your-vendor-backend.onrender.com
-BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:5001")
-
 LOG_DIR = "logs"
 LOG_PATH = os.path.join(LOG_DIR, "events.jsonl")
-
-INTERNAL_GATEWAY_TOKEN = os.environ.get("INTERNAL_GATEWAY_TOKEN", "wafinity-internal-2026")
 
 app = Flask(
     __name__,
     template_folder=os.path.join("dashboard", "templates"),
     static_folder=os.path.join("dashboard", "static"),
 )
-
-HOP_BY_HOP_HEADERS = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
-}
 
 AUTO_BAN_ENABLED = True
 AUTO_BAN_THRESHOLD = 5
@@ -90,9 +67,8 @@ ALL_THREAT_TYPES = [
     "AUTO_BAN",
 ]
 
-# ── Internal WAF routes that should NOT be proxied ──
 INTERNAL_PREFIXES = (
-    
+    "/dashboard",
     "/api/",
     "/analyze",
     "/event/",
@@ -101,10 +77,8 @@ INTERNAL_PREFIXES = (
     "/shop",
 )
 
-# ── Static file prefixes to forward directly without WAF inspection ──
 STATIC_PREFIXES = (
     "/favicon.ico",
-    "/vendor-static",
     "/static",
     "/css",
     "/js",
@@ -177,16 +151,10 @@ def register_ai_hit(ip: str):
 
 
 def build_payload_for_analysis():
-    """
-    FIX: Decode URL-encoded payloads so that attacks like
-    %27%20OR%20%27x%27=%27x  are decoded to  ' OR 'x'='x
-    and correctly detected by the rule engine.
-    """
     path_qs = request.full_path if request.query_string else request.path
     body = request.get_data(cache=True) or b""
     body_text = body.decode("utf-8", errors="ignore")
 
-    # Decode URL-encoded characters in the full URL
     raw_url = urllib.parse.unquote_plus(request.url)
     decoded_path_qs = urllib.parse.unquote_plus(path_qs)
 
@@ -217,7 +185,7 @@ def get_severity(score: int) -> str:
     if score >= 80:
         return "CRITICAL"
     if score >= 60:
-        return "HIGH"
+            return "HIGH"
     if score >= 30:
         return "MEDIUM"
     return "LOW"
@@ -303,6 +271,129 @@ def blocked_page_response(event, reason="MALICIOUS_REQUEST", status_code=403):
 
 
 # ===============================
+# Local Demo Vendor App
+# ===============================
+
+def demo_layout(title: str, content: str):
+    return render_template_string(
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{{ title }}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style>
+                body { font-family: Arial, sans-serif; margin: 0; background:#f5f7fb; color:#222; }
+                header { background:#111827; color:white; padding:16px 24px; }
+                nav a { color:white; margin-right:16px; text-decoration:none; font-weight:600; }
+                main { max-width:1000px; margin:30px auto; background:white; padding:24px; border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,.08); }
+                h1 { margin-top:0; }
+                .card { background:#f9fafb; border:1px solid #e5e7eb; padding:16px; border-radius:10px; margin:16px 0; }
+                input, textarea { width:100%; padding:10px; margin:8px 0 14px; border:1px solid #d1d5db; border-radius:8px; }
+                button { background:#2563eb; color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; }
+                .muted { color:#6b7280; }
+            </style>
+        </head>
+        <body>
+            <header>
+                <nav>
+                    <a href="/shop">Home</a>
+                    <a href="/shop/login">Login</a>
+                    <a href="/shop/products">Products</a>
+                    <a href="/shop/search">Search</a>
+                    <a href="/shop/contact">Contact</a>
+                    <a href="/dashboard">SOC Dashboard</a>
+                </nav>
+            </header>
+            <main>
+                {{ content|safe }}
+            </main>
+        </body>
+        </html>
+        """,
+        title=title,
+        content=content,
+    )
+
+
+def local_vendor_response(path: str):
+    path = (path or "").strip("/")
+
+    if path in ("", "shop"):
+        return demo_layout(
+            "Vendor Home",
+            """
+            <h1>Vendor Demo Application</h1>
+            <p class="muted">This application is protected by the AI-powered WAF gateway.</p>
+            <div class="card">
+                <h3>Demo Features</h3>
+                <p>Browse products, search inventory, try login, and monitor attacks in the SOC dashboard.</p>
+            </div>
+            """,
+        )
+
+    if path in ("login", "shop/login"):
+        return demo_layout(
+            "Login",
+            """
+            <h1>Customer Login</h1>
+            <form method="post" action="/shop/login">
+                <label>Email</label>
+                <input type="text" name="email" placeholder="user@example.com">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Enter password">
+                <button type="submit">Login</button>
+            </form>
+            """,
+        )
+
+    if path in ("products", "shop/products"):
+        return demo_layout(
+            "Products",
+            """
+            <h1>Products</h1>
+            <div class="card"><strong>Firewall Appliance</strong><p>Enterprise-grade protection for web traffic.</p></div>
+            <div class="card"><strong>SOC Dashboard Suite</strong><p>Monitor threats, blocked requests, and attacker IPs.</p></div>
+            <div class="card"><strong>Threat Analytics Pack</strong><p>Visual insights for attack trends and categories.</p></div>
+            """,
+        )
+
+    if path in ("search", "shop/search"):
+        q = request.args.get("q", "")
+        return demo_layout(
+            "Search",
+            f"""
+            <h1>Search Products</h1>
+            <form method="get" action="/shop/search">
+                <label>Keyword</label>
+                <input type="text" name="q" value="{q}" placeholder="Search here">
+                <button type="submit">Search</button>
+            </form>
+            <div class="card">
+                <strong>Search Query:</strong> {q or "No query entered"}
+            </div>
+            """,
+        )
+
+    if path in ("contact", "shop/contact"):
+        return demo_layout(
+            "Contact",
+            """
+            <h1>Contact Us</h1>
+            <form method="post" action="/shop/contact">
+                <label>Name</label>
+                <input type="text" name="name" placeholder="Your name">
+                <label>Message</label>
+                <textarea name="message" rows="5" placeholder="Type your message"></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+            """,
+        )
+
+    return Response("Vendor page not found", status=404)
+
+
+# ===============================
 # Health Route
 # ===============================
 
@@ -311,7 +402,7 @@ def health():
     return jsonify({
         "status": "ok",
         "service": "gateway",
-        "backend": BACKEND,
+        "mode": "single-service-render",
         "project": PROJECT_NAME,
     }), 200
 
@@ -342,9 +433,6 @@ def analyze_payload_text(payload: str):
             ai = predict_smart(payload, ip=client_ip, path=request.path if request else "/")
             ai_malicious = bool(ai.get("blocked", False))
             ai_score = int(float(ai.get("confidence", 0)))
-        else:
-            ai_score = 0
-            ai_malicious = False
     except Exception as e:
         print(f"[ML ERROR] {e}")
 
@@ -364,59 +452,6 @@ def analyze_payload_text(payload: str):
         "decision": decision,
         "threats": log_threats,
     }
-
-
-def forward_request(path):
-    target_url = f"{BACKEND}/{path}" if path else BACKEND + "/"
-
-    headers = {}
-    for k, v in request.headers.items():
-        if k.lower() in HOP_BY_HOP_HEADERS or k.lower() in {"host", "content-length"}:
-            continue
-        headers[k] = v
-
-    headers["X-Gateway-Auth"] = INTERNAL_GATEWAY_TOKEN
-    headers["X-Forwarded-By"] = "WAFinity-Gateway"
-
-    try:
-        resp = requests.request(
-            method=request.method,
-            url=target_url,
-            params=request.args,
-            data=request.get_data(cache=True),
-            headers=headers,
-            cookies=request.cookies,
-            allow_redirects=False,
-            timeout=15,
-        )
-
-        excluded_headers = {
-            "content-encoding",
-            "content-length",
-            "transfer-encoding",
-            "connection",
-        }
-        response_headers = [
-            (name, value)
-            for name, value in resp.raw.headers.items()
-            if name.lower() not in excluded_headers
-        ]
-
-        return Response(resp.content, status=resp.status_code, headers=response_headers)
-
-    except requests.exceptions.ConnectionError:
-        # FIX: Better error when backend is unreachable
-        return jsonify({
-            "error": "Backend service unreachable",
-            "hint": "Set BACKEND_URL environment variable on Render to your vendor backend URL",
-            "backend": BACKEND,
-        }), 502
-
-    except requests.exceptions.Timeout:
-        return jsonify({"error": "Backend service timed out"}), 504
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 # ===============================
@@ -441,8 +476,6 @@ def event_detail(event_id):
         reason = "AUTO_BAN"
     elif "AI_ANOMALY" in threats and len(threats) == 1:
         reason = "AI_ANOMALY"
-    elif threats:
-        reason = "RULE_ENGINE"
 
     event["severity"] = event.get("severity") or get_severity(int(event.get("final_score", 0)))
     event["decoded_payload"] = event.get("decoded_payload") or decode_payload_preview(
@@ -506,7 +539,6 @@ def api_search():
 
     matched = [e for e in events if match(e)]
     matched.sort(key=lambda x: int(x.get("ts") or 0), reverse=True)
-
     total = len(matched)
     sliced = matched[offset: offset + limit]
 
@@ -657,8 +689,7 @@ def api_summary():
 
     for t in range(aligned_start, now_ts + 1, bucket_sec):
         ist_time = datetime.fromtimestamp(t, tz=IST)
-        label = ist_time.strftime("%H:%M")
-        labels.append(label)
+        labels.append(ist_time.strftime("%H:%M"))
         bucket_map[t] = 0
 
     for e in filtered:
@@ -729,17 +760,14 @@ def analyze():
         if wants_html_response():
             return blocked_page_response(event, reason="AUTO_BAN", status_code=403)
 
-        return (
-            jsonify({
-                "success": True,
-                "blocked": True,
-                "reason": "AUTO_BAN",
-                "strike": _ip_strikes.get(client_ip, 0),
-                "ban_until": _ban_until.get(client_ip),
-                "ban_seconds_left": ban_seconds_left(client_ip),
-            }),
-            403,
-        )
+        return jsonify({
+            "success": True,
+            "blocked": True,
+            "reason": "AUTO_BAN",
+            "strike": _ip_strikes.get(client_ip, 0),
+            "ban_until": _ban_until.get(client_ip),
+            "ban_seconds_left": ban_seconds_left(client_ip),
+        }), 403
 
     result = analyze_payload_text(payload)
 
@@ -788,70 +816,90 @@ def analyze():
             status_code=403,
         )
 
-    return (
-        jsonify({
-            "success": True,
-            "blocked": result["decision"] == "BLOCK",
-            "decision": result["decision"],
-            "threats": result["threats"],
-            "rule_score": result["rule_score"],
-            "ai_score": result["ai_score"],
-            "final_score": result["final_score"],
-            "severity": get_severity(result["final_score"]),
-            "ai_malicious": result["ai_malicious"],
-            "banned_now": banned_now,
-            "ban_for": ban_for,
-            "strike": strike,
-            "ban_until": _ban_until.get(client_ip),
-            "ban_seconds_left": ban_seconds_left(client_ip),
-        }),
-        status,
-    )
+    return jsonify({
+        "success": True,
+        "blocked": result["decision"] == "BLOCK",
+        "decision": result["decision"],
+        "threats": result["threats"],
+        "rule_score": result["rule_score"],
+        "ai_score": result["ai_score"],
+        "final_score": result["final_score"],
+        "severity": get_severity(result["final_score"]),
+        "ai_malicious": result["ai_malicious"],
+        "banned_now": banned_now,
+        "ban_for": ban_for,
+        "strike": strike,
+        "ban_until": _ban_until.get(client_ip),
+        "ban_seconds_left": ban_seconds_left(client_ip),
+    }), status
 
 
 # ===============================
-# Vendor App Convenience Routes
+# Local Vendor Routes
 # ===============================
 
-@app.get("/shop")
-def shop_home_redirect():
-    return forward_request("")
+@app.get("/")
+def root_redirect():
+    return redirect(url_for("shop_home"))
 
 
-@app.get("/shop/<path:path>")
-def shop_path_redirect(path):
-    return forward_request(path)
+@app.route("/shop", methods=["GET"])
+def shop_home():
+    return local_vendor_response("")
+
+
+@app.route("/shop/login", methods=["GET", "POST"])
+def shop_login():
+    if request.method == "POST":
+        email = request.form.get("email", "")
+        return demo_layout(
+            "Login Result",
+            f"""
+            <h1>Login Attempt</h1>
+            <div class="card">
+                <strong>Email:</strong> {email or "No email provided"}<br>
+                <span class="muted">This is a demo vendor login protected by the WAF.</span>
+            </div>
+            """,
+        )
+    return local_vendor_response("login")
+
+
+@app.route("/shop/products", methods=["GET"])
+def shop_products():
+    return local_vendor_response("products")
+
+
+@app.route("/shop/search", methods=["GET"])
+def shop_search():
+    return local_vendor_response("search")
+
+
+@app.route("/shop/contact", methods=["GET", "POST"])
+def shop_contact():
+    if request.method == "POST":
+        name = request.form.get("name", "")
+        return demo_layout(
+            "Contact Submitted",
+            f"""
+            <h1>Message Received</h1>
+            <div class="card">
+                Thank you, {name or "Guest"}. Your message was submitted successfully.
+            </div>
+            """,
+        )
+    return local_vendor_response("contact")
 
 
 # ===============================
-# PROXY + WAF + REAL ML + AUTO BAN
+# Protected Catch-all WAF Layer
 # ===============================
 
-@app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
-@app.route("/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
-def proxy(path):
-
-    # ── FIX 1: Forward static files directly without WAF inspection ──
-    if request.path.startswith(STATIC_PREFIXES):
-        return forward_request(path)
-
-    # ── FIX 2: Let Flask handle its own registered internal routes ──
-    # DO NOT return 404 here — Flask already routes /dashboard, /api/, etc.
-    # to their registered handlers above. The proxy only handles
-    # everything else (vendor app traffic).
-    if request.path.startswith(INTERNAL_PREFIXES):
-        # This should never be reached because Flask routes registered
-        # above take priority. But just in case, skip WAF and return 404
-        # only for truly unknown internal paths.
-        return Response("Not found", status=404)
-
-    # ── Get client IP ──
+@app.route("/vendor/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def protected_vendor(path):
     client_ip = get_client_ip()
-
-    # ── FIX 3: Build payload with URL-decoded content for better detection ──
     payload = build_payload_for_analysis()
 
-    # ── Check Auto-Ban ──
     if AUTO_BAN_ENABLED and is_ip_banned(client_ip):
         event = {
             "event_id": generate_event_id(),
@@ -878,22 +926,8 @@ def proxy(path):
         }
         log_event(event)
         send_block_alert(event)
+        return blocked_page_response(event, reason="AUTO_BAN", status_code=403)
 
-        if wants_html_response():
-            return blocked_page_response(event, reason="AUTO_BAN", status_code=403)
-
-        return (
-            jsonify({
-                "blocked": True,
-                "reason": "AUTO_BAN",
-                "strike": _ip_strikes.get(client_ip, 0),
-                "ban_until": _ban_until.get(client_ip),
-                "ban_seconds_left": ban_seconds_left(client_ip),
-            }),
-            403,
-        )
-
-    # ── WAF Analysis ──
     result = analyze_payload_text(payload)
 
     banned_now = False
@@ -930,35 +964,13 @@ def proxy(path):
 
     if result["decision"] == "BLOCK":
         send_block_alert(event)
-
-        if wants_html_response():
-            return blocked_page_response(
-                event,
-                reason="RULE_ENGINE" if result["rule_malicious"] else "AI_ANOMALY",
-                status_code=403,
-            )
-
-        return (
-            jsonify({
-                "blocked": True,
-                "reason": "RULE_ENGINE" if result["rule_malicious"] else "AI_ANOMALY",
-                "threats": result["threats"],
-                "rule_score": result["rule_score"],
-                "ai_score": result["ai_score"],
-                "final_score": result["final_score"],
-                "severity": get_severity(result["final_score"]),
-                "ai_malicious": result["ai_malicious"],
-                "banned_now": banned_now,
-                "ban_for": ban_for,
-                "strike": strike,
-                "ban_until": _ban_until.get(client_ip),
-                "ban_seconds_left": ban_seconds_left(client_ip),
-            }),
-            403,
+        return blocked_page_response(
+            event,
+            reason="RULE_ENGINE" if result["rule_malicious"] else "AI_ANOMALY",
+            status_code=403,
         )
 
-    # ── FIX 4: Safe request — forward to vendor backend ──
-    return forward_request(path)
+    return local_vendor_response(path)
 
 
 # ===============================
@@ -991,10 +1003,9 @@ def admin_allowlist():
     return jsonify({"success": True, "message": "Allowlist updated."}), 200
 
 
-# ── Ensure log directory exists at startup ──
 ensure_logs_dir()
 
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
