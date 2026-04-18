@@ -67,24 +67,6 @@ ALL_THREAT_TYPES = [
     "AUTO_BAN",
 ]
 
-INTERNAL_PREFIXES = (
-    "/dashboard",
-    "/api/",
-    "/analyze",
-    "/event/",
-    "/health",
-    "/admin/",
-    "/shop",
-)
-
-STATIC_PREFIXES = (
-    "/favicon.ico",
-    "/static",
-    "/css",
-    "/js",
-    "/images",
-)
-
 
 # ===============================
 # Helpers
@@ -185,7 +167,7 @@ def get_severity(score: int) -> str:
     if score >= 80:
         return "CRITICAL"
     if score >= 60:
-            return "HIGH"
+        return "HIGH"
     if score >= 30:
         return "MEDIUM"
     return "LOW"
@@ -297,11 +279,11 @@ def demo_layout(title: str, content: str):
         <body>
             <header>
                 <nav>
-                    <a href="/shop">Home</a>
-                    <a href="/shop/login">Login</a>
-                    <a href="/shop/products">Products</a>
-                    <a href="/shop/search">Search</a>
-                    <a href="/shop/contact">Contact</a>
+                    <a href="/">Home</a>
+                    <a href="/login">Login</a>
+                    <a href="/products">Products</a>
+                    <a href="/search">Search</a>
+                    <a href="/contact">Contact</a>
                     <a href="/dashboard">SOC Dashboard</a>
                 </nav>
             </header>
@@ -319,7 +301,7 @@ def demo_layout(title: str, content: str):
 def local_vendor_response(path: str):
     path = (path or "").strip("/")
 
-    if path in ("", "shop"):
+    if path == "":
         return demo_layout(
             "Vendor Home",
             """
@@ -332,12 +314,25 @@ def local_vendor_response(path: str):
             """,
         )
 
-    if path in ("login", "shop/login"):
+    if path == "login":
+        if request.method == "POST":
+            email = request.form.get("email", "")
+            return demo_layout(
+                "Login Result",
+                f"""
+                <h1>Login Attempt</h1>
+                <div class="card">
+                    <strong>Email:</strong> {email or "No email provided"}<br>
+                    <span class="muted">This is a demo vendor login protected by the WAF.</span>
+                </div>
+                """,
+            )
+
         return demo_layout(
             "Login",
             """
             <h1>Customer Login</h1>
-            <form method="post" action="/shop/login">
+            <form method="post" action="/login">
                 <label>Email</label>
                 <input type="text" name="email" placeholder="user@example.com">
                 <label>Password</label>
@@ -347,7 +342,7 @@ def local_vendor_response(path: str):
             """,
         )
 
-    if path in ("products", "shop/products"):
+    if path == "products":
         return demo_layout(
             "Products",
             """
@@ -358,13 +353,13 @@ def local_vendor_response(path: str):
             """,
         )
 
-    if path in ("search", "shop/search"):
+    if path == "search":
         q = request.args.get("q", "")
         return demo_layout(
             "Search",
             f"""
             <h1>Search Products</h1>
-            <form method="get" action="/shop/search">
+            <form method="get" action="/search">
                 <label>Keyword</label>
                 <input type="text" name="q" value="{q}" placeholder="Search here">
                 <button type="submit">Search</button>
@@ -375,12 +370,24 @@ def local_vendor_response(path: str):
             """,
         )
 
-    if path in ("contact", "shop/contact"):
+    if path == "contact":
+        if request.method == "POST":
+            name = request.form.get("name", "")
+            return demo_layout(
+                "Contact Submitted",
+                f"""
+                <h1>Message Received</h1>
+                <div class="card">
+                    Thank you, {name or "Guest"}. Your message was submitted successfully.
+                </div>
+                """,
+            )
+
         return demo_layout(
             "Contact",
             """
             <h1>Contact Us</h1>
-            <form method="post" action="/shop/contact">
+            <form method="post" action="/contact">
                 <label>Name</label>
                 <input type="text" name="name" placeholder="Your name">
                 <label>Message</label>
@@ -452,6 +459,113 @@ def analyze_payload_text(payload: str):
         "decision": decision,
         "threats": log_threats,
     }
+
+
+def apply_waf_and_serve_vendor(path: str):
+    client_ip = get_client_ip()
+    payload = build_payload_for_analysis()
+
+    if AUTO_BAN_ENABLED and is_ip_banned(client_ip):
+        event = {
+            "event_id": generate_event_id(),
+            "ts": now(),
+            "time": ist_now_str(),
+            "ip": client_ip,
+            "source": "proxy",
+            "method": request.method,
+            "path": request.path,
+            "query": request.query_string.decode("utf-8", errors="ignore"),
+            "decision": "BLOCK",
+            "threats": ["AUTO_BAN"],
+            "risk_score": 100,
+            "ai_score": 100,
+            "final_score": 100,
+            "severity": "CRITICAL",
+            "payload_preview": payload_preview_from_text(payload),
+            "decoded_payload": decode_payload_preview(payload_preview_from_text(payload)),
+            "banned_now": False,
+            "ban_for": 0,
+            "strike": _ip_strikes.get(client_ip, 0),
+            "ban_until": _ban_until.get(client_ip),
+            "ban_seconds_left": ban_seconds_left(client_ip),
+        }
+        log_event(event)
+        send_block_alert(event)
+
+        if wants_html_response():
+            return blocked_page_response(event, reason="AUTO_BAN", status_code=403)
+
+        return jsonify({
+            "success": True,
+            "blocked": True,
+            "reason": "AUTO_BAN",
+            "strike": _ip_strikes.get(client_ip, 0),
+            "ban_until": _ban_until.get(client_ip),
+            "ban_seconds_left": ban_seconds_left(client_ip),
+        }), 403
+
+    result = analyze_payload_text(payload)
+
+    banned_now = False
+    ban_for = 0
+    strike = _ip_strikes.get(client_ip, 0)
+
+    if AUTO_BAN_ENABLED and result["ai_malicious"]:
+        banned_now, ban_for, strike = register_ai_hit(client_ip)
+
+    event = {
+        "event_id": generate_event_id(),
+        "ts": now(),
+        "time": ist_now_str(),
+        "ip": client_ip,
+        "source": "proxy",
+        "method": request.method,
+        "path": request.path,
+        "query": request.query_string.decode("utf-8", errors="ignore"),
+        "decision": result["decision"],
+        "threats": result["threats"],
+        "risk_score": result["rule_score"],
+        "ai_score": result["ai_score"],
+        "final_score": result["final_score"],
+        "severity": get_severity(result["final_score"]),
+        "payload_preview": payload_preview_from_text(payload),
+        "decoded_payload": decode_payload_preview(payload_preview_from_text(payload)),
+        "banned_now": banned_now,
+        "ban_for": ban_for,
+        "strike": strike,
+        "ban_until": _ban_until.get(client_ip),
+        "ban_seconds_left": ban_seconds_left(client_ip),
+    }
+    log_event(event)
+
+    if result["decision"] == "BLOCK":
+        send_block_alert(event)
+
+        if wants_html_response():
+            return blocked_page_response(
+                event,
+                reason="RULE_ENGINE" if result["rule_malicious"] else "AI_ANOMALY",
+                status_code=403,
+            )
+
+        return jsonify({
+            "success": True,
+            "blocked": True,
+            "decision": result["decision"],
+            "threats": result["threats"],
+            "rule_score": result["rule_score"],
+            "ai_score": result["ai_score"],
+            "final_score": result["final_score"],
+            "severity": get_severity(result["final_score"]),
+            "ai_malicious": result["ai_malicious"],
+            "banned_now": banned_now,
+            "ban_for": ban_for,
+            "strike": strike,
+            "ban_until": _ban_until.get(client_ip),
+            "ban_seconds_left": ban_seconds_left(client_ip),
+        }), 403
+
+    return local_vendor_response(path)
 
 
 # ===============================
@@ -835,142 +949,70 @@ def analyze():
 
 
 # ===============================
-# Local Vendor Routes
+# Public Vendor Routes Through WAF
 # ===============================
 
-@app.get("/")
-def root_redirect():
-    return redirect(url_for("shop_home"))
+@app.route("/", methods=["GET"])
+def home():
+    return apply_waf_and_serve_vendor("")
 
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    return apply_waf_and_serve_vendor("login")
+
+
+@app.route("/products", methods=["GET"])
+def products():
+    return apply_waf_and_serve_vendor("products")
+
+
+@app.route("/search", methods=["GET"])
+def search():
+    return apply_waf_and_serve_vendor("search")
+
+
+@app.route("/contact", methods=["GET", "POST"])
+def contact():
+    return apply_waf_and_serve_vendor("contact")
+
+
+# ===============================
+# Optional /shop aliases
+# ===============================
 
 @app.route("/shop", methods=["GET"])
 def shop_home():
-    return local_vendor_response("")
+    return apply_waf_and_serve_vendor("")
 
 
 @app.route("/shop/login", methods=["GET", "POST"])
 def shop_login():
-    if request.method == "POST":
-        email = request.form.get("email", "")
-        return demo_layout(
-            "Login Result",
-            f"""
-            <h1>Login Attempt</h1>
-            <div class="card">
-                <strong>Email:</strong> {email or "No email provided"}<br>
-                <span class="muted">This is a demo vendor login protected by the WAF.</span>
-            </div>
-            """,
-        )
-    return local_vendor_response("login")
+    return apply_waf_and_serve_vendor("login")
 
 
 @app.route("/shop/products", methods=["GET"])
 def shop_products():
-    return local_vendor_response("products")
+    return apply_waf_and_serve_vendor("products")
 
 
 @app.route("/shop/search", methods=["GET"])
 def shop_search():
-    return local_vendor_response("search")
+    return apply_waf_and_serve_vendor("search")
 
 
 @app.route("/shop/contact", methods=["GET", "POST"])
 def shop_contact():
-    if request.method == "POST":
-        name = request.form.get("name", "")
-        return demo_layout(
-            "Contact Submitted",
-            f"""
-            <h1>Message Received</h1>
-            <div class="card">
-                Thank you, {name or "Guest"}. Your message was submitted successfully.
-            </div>
-            """,
-        )
-    return local_vendor_response("contact")
+    return apply_waf_and_serve_vendor("contact")
 
 
 # ===============================
-# Protected Catch-all WAF Layer
+# Legacy /vendor route also protected
 # ===============================
 
 @app.route("/vendor/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def protected_vendor(path):
-    client_ip = get_client_ip()
-    payload = build_payload_for_analysis()
-
-    if AUTO_BAN_ENABLED and is_ip_banned(client_ip):
-        event = {
-            "event_id": generate_event_id(),
-            "ts": now(),
-            "time": ist_now_str(),
-            "ip": client_ip,
-            "source": "proxy",
-            "method": request.method,
-            "path": request.path,
-            "query": request.query_string.decode("utf-8", errors="ignore"),
-            "decision": "BLOCK",
-            "threats": ["AUTO_BAN"],
-            "risk_score": 100,
-            "ai_score": 100,
-            "final_score": 100,
-            "severity": "CRITICAL",
-            "payload_preview": payload_preview_from_text(payload),
-            "decoded_payload": decode_payload_preview(payload_preview_from_text(payload)),
-            "banned_now": False,
-            "ban_for": 0,
-            "strike": _ip_strikes.get(client_ip, 0),
-            "ban_until": _ban_until.get(client_ip),
-            "ban_seconds_left": ban_seconds_left(client_ip),
-        }
-        log_event(event)
-        send_block_alert(event)
-        return blocked_page_response(event, reason="AUTO_BAN", status_code=403)
-
-    result = analyze_payload_text(payload)
-
-    banned_now = False
-    ban_for = 0
-    strike = _ip_strikes.get(client_ip, 0)
-
-    if AUTO_BAN_ENABLED and result["ai_malicious"]:
-        banned_now, ban_for, strike = register_ai_hit(client_ip)
-
-    event = {
-        "event_id": generate_event_id(),
-        "ts": now(),
-        "time": ist_now_str(),
-        "ip": client_ip,
-        "source": "proxy",
-        "method": request.method,
-        "path": request.path,
-        "query": request.query_string.decode("utf-8", errors="ignore"),
-        "decision": result["decision"],
-        "threats": result["threats"],
-        "risk_score": result["rule_score"],
-        "ai_score": result["ai_score"],
-        "final_score": result["final_score"],
-        "severity": get_severity(result["final_score"]),
-        "payload_preview": payload_preview_from_text(payload),
-        "decoded_payload": decode_payload_preview(payload_preview_from_text(payload)),
-        "banned_now": banned_now,
-        "ban_for": ban_for,
-        "strike": strike,
-        "ban_until": _ban_until.get(client_ip),
-        "ban_seconds_left": ban_seconds_left(client_ip),
-    }
-    log_event(event)
-
-    if result["decision"] == "BLOCK":
-        send_block_alert(event)
-        return blocked_page_response(
-            event,
-            reason="RULE_ENGINE" if result["rule_malicious"] else "AI_ANOMALY",
-            status_code=403,
-        )
-
-    return local_vendor_response(path)
+    return apply_waf_and_serve_vendor(path)
 
 
 # ===============================
@@ -1006,6 +1048,5 @@ def admin_allowlist():
 ensure_logs_dir()
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
